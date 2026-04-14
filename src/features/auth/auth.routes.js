@@ -50,7 +50,7 @@ function validate(schema) {
       const error = new Error('Validation failed');
       error.statusCode = 400;
       // Format Zod errors into readable field messages
-      error.details = result.error.errors.map((e) => ({
+      error.details = result.error.issues.map((e) => ({
         field: e.path.join('.'),
         message: e.message,
       }));

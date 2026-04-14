@@ -14,3 +14,6 @@ Thumbs.db
 
 # Build output (for future phases)
 dist/
+
+# Local developer context — not for repo
+context.md

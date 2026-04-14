@@ -1,13 +1,14 @@
 /**
  * Environment variable validator.
  * Fails fast at startup if required variables are missing.
- * This prevents runtime errors deep in request handlers.
  */
 
 const requiredEnvVars = [
   'NODE_ENV',
   'PORT',
   'JWT_SECRET',
+  'JWT_EXPIRES_IN',
+  'DATABASE_URL',
 ];
 
 function validateEnv() {
@@ -16,7 +17,7 @@ function validateEnv() {
   if (missing.length > 0) {
     console.error('❌ Missing required environment variables:');
     missing.forEach((key) => console.error(`   - ${key}`));
-    process.exit(1); // Hard exit — don't start a broken server
+    process.exit(1);
   }
 
   console.log('✅ Environment variables validated');

@@ -6,14 +6,11 @@
  * If server.js was the entry point for tests, it would
  * try to bind a port — that breaks parallel test runs.
  */
-
 require('dotenv').config();
-
 const express = require('express');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const cors = require('cors');
-
 const { validateEnv } = require('./src/config/env');
 const errorHandler = require('./src/middleware/errorHandler');
 
@@ -38,8 +35,8 @@ app.use(cors({
 }));
 
 // ── Request parsing ───────────────────────────────────────────────
-app.use(express.json({ limit: '1mb' }));        // JSON body parser
-app.use(express.urlencoded({ extended: true })); // Form data parser
+app.use(express.json({ limit: '1mb' }));         // JSON body parser
+app.use(express.urlencoded({ extended: true }));  // Form data parser
 
 // ── HTTP request logging ──────────────────────────────────────────
 // 'dev' format in dev, 'combined' (Apache-style) in prod
@@ -57,10 +54,10 @@ app.get('/health', (req, res) => {
 });
 
 // ── API routes (added phase by phase) ────────────────────────────
- app.use('/api/auth', require('./src/features/auth/auth.routes'));
-// app.use('/api/apps', require('./src/features/apps/apps.routes'));
-// app.use('/api/logs', require('./src/features/logs/logs.routes'));
-// app.use('/api/alerts', require('./src/features/alerts/alerts.routes'));
+app.use('/api/auth', require('./src/features/auth/auth.routes'));
+app.use('/api/apps', require('./src/features/apps/apps.routes'));   // Phase 4 ✅
+// app.use('/api/logs',    require('./src/features/logs/logs.routes'));
+// app.use('/api/alerts',  require('./src/features/alerts/alerts.routes'));
 
 // ── 404 handler ───────────────────────────────────────────────────
 app.use((req, res) => {

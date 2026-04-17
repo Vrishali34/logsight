@@ -58,7 +58,10 @@ app.use('/api/auth',     require('./src/features/auth/auth.routes'));
 app.use('/api/apps',     require('./src/features/apps/apps.routes'));       // Phase 4 ✅
 app.use('/api/logs',     require('./src/features/logs/logs.routes'));       // Phase 5 ✅
 app.use('/api/analysis', require('./src/features/analysis/analysis.routes')); // Phase 6 ✅
-// app.use('/api/alerts',  require('./src/features/alerts/alerts.routes')); // Phase 7
+app.use('/api/alerts',  require('./src/features/alerts/alerts.routes')); // Phase 7
+
+
+
 
 // ── 404 handler ───────────────────────────────────────────────────
 app.use((req, res) => {

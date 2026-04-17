@@ -1,4 +1,5 @@
-const logsService = require('./logs.service');
+const logsService    = require('./logs.service');
+const { checkAlerts } = require('../alerts/alerts.service');
 
 const ingestLog = async (req, res) => {
   const { level, message, service, metadata } = req.body;
@@ -11,7 +12,14 @@ const ingestLog = async (req, res) => {
     metadata,
   });
 
-  res.status(201).json({ success: true, log });
+  // Check alert rules after every log ingestion
+  const triggeredAlerts = await checkAlerts(req.app_record.id);
+
+  res.status(201).json({
+    success: true,
+    log,
+    alerts: triggeredAlerts, // empty array [] if nothing triggered
+  });
 };
 
 const queryLogs = async (req, res) => {
@@ -22,7 +30,7 @@ const queryLogs = async (req, res) => {
     appId,
     level,
     service,
-    limit: parseInt(limit) || 50,
+    limit:  parseInt(limit) || 50,
     offset: parseInt(offset) || 0,
   });
 

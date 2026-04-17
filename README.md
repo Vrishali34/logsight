@@ -1,6 +1,6 @@
 # LogSight
 
-A production-style **System Monitoring & Alerting Platform**. Ingest logs from your services via HTTP, monitor error rates in real time, trigger threshold alerts, and analyse trends with an AI-powered insights engine.
+A production-style **System Monitoring & Alerting Platform**. Ingest logs from your services via HTTP, monitor error rates in real time, trigger threshold alerts automatically, and analyse trends with an AI-powered insights engine.
 
 Built with **Node.js + Express 5**, **PostgreSQL**, **BullMQ + Redis**, and the **Anthropic Claude API**. Frontend in **React + Vite + Recharts**.
 
@@ -16,12 +16,12 @@ Built with **Node.js + Express 5**, **PostgreSQL**, **BullMQ + Redis**, and the 
 | 4 | App management — create app, API key generation | ✅ Complete |
 | 5 | Log ingestion API — POST logs, GET logs with filters | ✅ Complete |
 | 6 | Analysis engine — summary, trends, service breakdown | ✅ Complete |
-| 7 | Alert system — threshold detection + cooldown | ⬜ Next |
-| 8 | React frontend — Vite + Recharts dashboard | ⬜ Upcoming |
+| 7 | Alert system — threshold detection, cooldown | ✅ Complete |
+| 8 | React frontend — Vite + Recharts dashboard | ⬜ Next |
 | 9 | AI insights — Anthropic Claude API | ⬜ Upcoming |
 | 10 | Docker + deployment — Render + Supabase | ⬜ Upcoming |
 
-**Tests: 17 passing** across 3 suites (apps, logs, analysis)
+**Tests: 26 passing** across 4 suites (apps, logs, analysis, alerts)
 
 ---
 
@@ -85,59 +85,33 @@ npm run dev
 | GET | `/api/analysis/summary` | JWT | Error rate + level breakdown |
 | GET | `/api/analysis/trends` | JWT | Hourly log volume chart data |
 | GET | `/api/analysis/services` | JWT | Per-service error rates |
-| GET | `/api/alerts` | JWT | Alert rules *(Phase 7)* |
+| POST | `/api/alerts` | JWT | Create an alert rule |
+| GET | `/api/alerts` | JWT | List alert rules |
+| DELETE | `/api/alerts/:id` | JWT | Delete an alert rule |
 | GET | `/api/ai/insights` | JWT | AI-powered analysis *(Phase 9)* |
-
-### Query Parameters
-
-**GET /api/logs**
-```
-?app_id=1       required
-?level=error    optional — info/warn/error/debug
-?service=name   optional
-?limit=50       optional (default 50)
-?offset=0       optional (default 0)
-```
-
-**GET /api/analysis/summary|trends|services**
-```
-?app_id=1       required
-?hours=24       optional — lookback window in hours (default 24)
-```
 
 ---
 
-## Example Requests
+## How Alerting Works
 
-### Ingest a log
+1. Create a rule: `POST /api/alerts` with `{ app_id, metric: "error_rate", threshold: 30, cooldown_minutes: 5 }`
+2. Every time a log is ingested via `POST /api/logs`, the system automatically checks all rules
+3. If `error_rate > threshold` AND cooldown has expired → alert fires
+4. Triggered alerts appear in the ingestion response under `alerts[]`
+5. `last_triggered` is updated immediately to start the cooldown clock
+
 ```bash
-curl -X POST http://localhost:3000/api/logs \
+# Create a rule — alert if error rate exceeds 30%
+curl -X POST http://localhost:3000/api/alerts \
+  -H "Authorization: Bearer YOUR_JWT" \
   -H "Content-Type: application/json" \
-  -H "x-api-key: ls_YOUR_API_KEY" \
-  -d '{
-    "level": "error",
-    "message": "Payment timeout",
-    "service": "payment-service",
-    "metadata": { "orderId": "ord_123" }
-  }'
-```
+  -d '{"app_id": 1, "metric": "error_rate", "threshold": 30, "cooldown_minutes": 5}'
 
-### Get error rate for last 24 hours
-```bash
-curl "http://localhost:3000/api/analysis/summary?app_id=1&hours=24" \
-  -H "Authorization: Bearer YOUR_JWT"
-```
-
-### Get hourly trend data
-```bash
-curl "http://localhost:3000/api/analysis/trends?app_id=1&hours=24" \
-  -H "Authorization: Bearer YOUR_JWT"
-```
-
-### See which service is failing most
-```bash
-curl "http://localhost:3000/api/analysis/services?app_id=1" \
-  -H "Authorization: Bearer YOUR_JWT"
+# Ingest an error log — response includes alerts[] if threshold is breached
+curl -X POST http://localhost:3000/api/logs \
+  -H "x-api-key: ls_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"level": "error", "message": "Payment failed", "service": "payment-service"}'
 ```
 
 ---
@@ -147,10 +121,9 @@ curl "http://localhost:3000/api/analysis/services?app_id=1" \
 ```bash
 npm run dev           # Start with nodemon (hot reload)
 npm start             # Start for production
-npm test              # Run all tests (17 passing)
+npm test              # Run all tests (26 passing)
 npm run migrate:up    # Run all pending migrations
 npm run migrate:down  # Roll back last migration
-npm run migrate:create # Create new migration file
 ```
 
 ---
@@ -161,7 +134,7 @@ npm run migrate:create # Create new migration file
 logsight/
 ├── migrations/
 ├── src/
-│   ├── config/         # db.js (pool), env.js
+│   ├── config/         # db.js, env.js
 │   ├── middleware/      # errorHandler.js
 │   ├── utils/           # logger.js
 │   └── features/
@@ -169,9 +142,9 @@ logsight/
 │       ├── apps/        # create app, API key ✅
 │       ├── logs/        # ingest, query, apiKey middleware ✅
 │       ├── analysis/    # summary, trends, services ✅
-│       ├── alerts/      # Phase 7
+│       ├── alerts/      # CRUD rules + checkAlerts ✅
 │       └── ai/          # Phase 9
-├── tests/               # 17 tests, 3 suites
+├── tests/               # 26 tests, 4 suites
 ├── app.js
 └── server.js
 ```
@@ -180,10 +153,10 @@ logsight/
 
 ## Key Architecture Decisions
 
+- **Synchronous alert checking** — runs inside the log ingestion request; production upgrade is a BullMQ async job
+- **Cooldown via last_triggered timestamp** — updated immediately on fire to prevent double-alerts under concurrent load
+- **parseFloat(rule.threshold)** — pg driver returns NUMERIC as string; explicit cast prevents silent comparison bugs
+- **Early exit in checkAlerts** — if app has no rules, returns immediately with zero extra DB queries
+- **metric as Zod enum** — only `error_rate` supported; adding new metrics is a safe, explicit one-line change
 - **Two auth systems** — JWT for user-facing routes, API keys for machine-to-machine log ingestion
-- **Single DB round trip per analysis endpoint** — FILTER aggregates compute everything in one SQL query
-- **Composite index (app_id, timestamp)** — designed in Phase 2 specifically for Phase 6 analysis queries
-- **Raw SQL over ORM** — DATE_TRUNC, FILTER, INTERVAL, NULLIF require raw SQL
-- **NULLIF(COUNT(*), 0)** — prevents division-by-zero crash when app has no logs
-- **Dynamic WHERE building** — only adds filter conditions that were actually provided
-- **req.app_record** — Express reserves req.app; overwriting it silently breaks the framework
+- **Raw SQL** — FILTER aggregates, DATE_TRUNC, INTERVAL require raw SQL; ORMs get in the way

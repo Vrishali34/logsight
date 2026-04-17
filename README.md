@@ -15,13 +15,13 @@ Built with **Node.js + Express 5**, **PostgreSQL**, **BullMQ + Redis**, and the 
 | 3 | Auth system — register, login, JWT middleware | ✅ Complete |
 | 4 | App management — create app, API key generation | ✅ Complete |
 | 5 | Log ingestion API — POST logs, GET logs with filters | ✅ Complete |
-| 6 | Analysis engine — error rates, trends (SQL CTEs) | ⬜ Next |
-| 7 | Alert system — threshold detection + cooldown | ⬜ Upcoming |
+| 6 | Analysis engine — summary, trends, service breakdown | ✅ Complete |
+| 7 | Alert system — threshold detection + cooldown | ⬜ Next |
 | 8 | React frontend — Vite + Recharts dashboard | ⬜ Upcoming |
 | 9 | AI insights — Anthropic Claude API | ⬜ Upcoming |
 | 10 | Docker + deployment — Render + Supabase | ⬜ Upcoming |
 
-**Tests: 12 passing** (4 app management + 8 log ingestion)
+**Tests: 17 passing** across 3 suites (apps, logs, analysis)
 
 ---
 
@@ -44,13 +44,6 @@ Built with **Node.js + Express 5**, **PostgreSQL**, **BullMQ + Redis**, and the 
 
 ## Getting Started
 
-### Prerequisites
-- Node.js v18+
-- PostgreSQL running locally
-- Redis running locally
-
-### Setup
-
 ```bash
 git clone https://github.com/Vrishali34/logsight
 cd logsight
@@ -72,7 +65,7 @@ npm run dev
 | `DATABASE_URL` | PostgreSQL connection string |
 | `JWT_SECRET` | Min 32-character random string |
 | `JWT_EXPIRES_IN` | Token expiry e.g. `7d` |
-| `REDIS_URL` | Redis connection (Phase 5+) |
+| `REDIS_URL` | Redis connection (Phase 7+) |
 | `ANTHROPIC_API_KEY` | Claude API key (Phase 9) |
 | `FRONTEND_URL` | React app URL for CORS in prod (Phase 8) |
 
@@ -89,39 +82,62 @@ npm run dev
 | GET | `/api/apps` | JWT | List your apps |
 | POST | `/api/logs` | API Key | Ingest a log entry |
 | GET | `/api/logs` | JWT | Query logs with filters |
-| GET | `/api/analysis` | JWT | Error rates + trends *(Phase 6)* |
+| GET | `/api/analysis/summary` | JWT | Error rate + level breakdown |
+| GET | `/api/analysis/trends` | JWT | Hourly log volume chart data |
+| GET | `/api/analysis/services` | JWT | Per-service error rates |
 | GET | `/api/alerts` | JWT | Alert rules *(Phase 7)* |
 | GET | `/api/ai/insights` | JWT | AI-powered analysis *(Phase 9)* |
 
-### Authentication Headers
+### Query Parameters
+
+**GET /api/logs**
 ```
-Authorization: Bearer <jwt_token>       ← for JWT-protected routes
-x-api-key: <app_api_key>               ← for log ingestion (POST /api/logs)
+?app_id=1       required
+?level=error    optional — info/warn/error/debug
+?service=name   optional
+?limit=50       optional (default 50)
+?offset=0       optional (default 0)
 ```
 
-### Query Params for GET /api/logs
+**GET /api/analysis/summary|trends|services**
 ```
-?app_id=1           required — which app's logs to fetch
-?level=error        optional — filter by level (info/warn/error/debug)
-?service=payment    optional — filter by service name
-?limit=50           optional — results per page (default 50)
-?offset=0           optional — pagination offset (default 0)
+?app_id=1       required
+?hours=24       optional — lookback window in hours (default 24)
 ```
 
 ---
 
-## Example: Ingest a Log
+## Example Requests
 
+### Ingest a log
 ```bash
 curl -X POST http://localhost:3000/api/logs \
   -H "Content-Type: application/json" \
   -H "x-api-key: ls_YOUR_API_KEY" \
   -d '{
     "level": "error",
-    "message": "Payment timeout after 5000ms",
+    "message": "Payment timeout",
     "service": "payment-service",
-    "metadata": { "orderId": "ord_123", "retryCount": 3 }
+    "metadata": { "orderId": "ord_123" }
   }'
+```
+
+### Get error rate for last 24 hours
+```bash
+curl "http://localhost:3000/api/analysis/summary?app_id=1&hours=24" \
+  -H "Authorization: Bearer YOUR_JWT"
+```
+
+### Get hourly trend data
+```bash
+curl "http://localhost:3000/api/analysis/trends?app_id=1&hours=24" \
+  -H "Authorization: Bearer YOUR_JWT"
+```
+
+### See which service is failing most
+```bash
+curl "http://localhost:3000/api/analysis/services?app_id=1" \
+  -H "Authorization: Bearer YOUR_JWT"
 ```
 
 ---
@@ -131,11 +147,10 @@ curl -X POST http://localhost:3000/api/logs \
 ```bash
 npm run dev           # Start with nodemon (hot reload)
 npm start             # Start for production
-npm test              # Run all tests (12 passing)
-npm run test:watch    # Run tests in watch mode
+npm test              # Run all tests (17 passing)
 npm run migrate:up    # Run all pending migrations
 npm run migrate:down  # Roll back last migration
-npm run migrate:create # Create a new migration file
+npm run migrate:create # Create new migration file
 ```
 
 ---
@@ -144,37 +159,31 @@ npm run migrate:create # Create a new migration file
 
 ```
 logsight/
-├── migrations/          # Versioned SQL schema files
+├── migrations/
 ├── src/
-│   ├── config/
-│   │   ├── db.js        # pg connection pool (exports: pool, connectDB)
-│   │   └── env.js       # fail-fast env validation
-│   ├── middleware/
-│   │   └── errorHandler.js
-│   ├── utils/
-│   │   └── logger.js    # structured JSON logger
+│   ├── config/         # db.js (pool), env.js
+│   ├── middleware/      # errorHandler.js
+│   ├── utils/           # logger.js
 │   └── features/
-│       ├── auth/        # register, login, JWT middleware ✅
-│       ├── apps/        # app management, API key generation ✅
-│       ├── logs/        # log ingestion, API key auth, query ✅
-│       ├── analysis/    # Phase 6
+│       ├── auth/        # register, login, JWT ✅
+│       ├── apps/        # create app, API key ✅
+│       ├── logs/        # ingest, query, apiKey middleware ✅
+│       ├── analysis/    # summary, trends, services ✅
 │       ├── alerts/      # Phase 7
 │       └── ai/          # Phase 9
-├── tests/
-│   ├── apps.test.js     # 4 tests
-│   └── logs.test.js     # 8 tests
-├── app.js               # Express config (exported for tests)
-└── server.js            # HTTP server + graceful shutdown
+├── tests/               # 17 tests, 3 suites
+├── app.js
+└── server.js
 ```
 
 ---
 
 ## Key Architecture Decisions
 
-- **Two auth systems** — JWT for user-facing routes (dashboard), API keys for machine-to-machine log ingestion
-- **req.app_record not req.app** — Express reserves req.app; overwriting it breaks the framework
-- **API keys stored in plaintext** — hashing would add ~250ms bcrypt latency to the log ingestion hot path
-- **Dynamic SQL query building** — WHERE conditions built only for provided filters; avoids NULL comparison bugs
-- **Parameterised queries** — all values use $1 $2 placeholders; SQL injection is structurally impossible
-- **ZodError → 400** — validation failures caught in middleware; never bubble up as 500
-- **Raw SQL over ORM** — Phase 6 needs CTEs and window functions that ORMs handle poorly
+- **Two auth systems** — JWT for user-facing routes, API keys for machine-to-machine log ingestion
+- **Single DB round trip per analysis endpoint** — FILTER aggregates compute everything in one SQL query
+- **Composite index (app_id, timestamp)** — designed in Phase 2 specifically for Phase 6 analysis queries
+- **Raw SQL over ORM** — DATE_TRUNC, FILTER, INTERVAL, NULLIF require raw SQL
+- **NULLIF(COUNT(*), 0)** — prevents division-by-zero crash when app has no logs
+- **Dynamic WHERE building** — only adds filter conditions that were actually provided
+- **req.app_record** — Express reserves req.app; overwriting it silently breaks the framework

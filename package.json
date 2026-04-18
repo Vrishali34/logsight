@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "client": "cd client && npm run dev",
     "test": "jest --runInBand --forceExit",
     "test:watch": "jest --watch",
     "migrate:up": "node-pg-migrate up",

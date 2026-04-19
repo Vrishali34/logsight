@@ -60,6 +60,8 @@ app.use('/api/logs',     require('./src/features/logs/logs.routes'));       // P
 app.use('/api/analysis', require('./src/features/analysis/analysis.routes')); // Phase 6 ✅
 app.use('/api/alerts',  require('./src/features/alerts/alerts.routes')); // Phase 7
 
+app.use('/api/ai',     require('./src/features/ai/ai.routes'));       // Phase 9 ✅
+
 
 
 

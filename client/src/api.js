@@ -31,4 +31,5 @@ export const api = {
   getAlerts:      (appId)               => req('GET',  `/alerts?app_id=${appId}`),
   createAlert:    (body)                => req('POST', '/alerts', body),
   deleteAlert:    (id, appId)           => req('DELETE', `/alerts/${id}?app_id=${appId}`),
+  getInsights:    (appId, hours)        => req('GET', `/ai/insights?app_id=${appId}&hours=${hours || 24}`),
 };

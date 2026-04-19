@@ -1,17 +1,20 @@
+ 
+import AIInsights from './AIInsights';
 import { useEffect, useState } from 'react';
 import { api } from './api';
-import Summary      from './Summary';
-import TrendsChart  from './TrendsChart';
+import Summary       from './Summary';
+import TrendsChart   from './TrendsChart';
 import ServicesTable from './ServicesTable';
-import LogViewer    from './LogViewer';
-import AlertsPanel  from './AlertsPanel';
+import LogViewer     from './LogViewer';
+import AlertsPanel   from './AlertsPanel';
+
 
 export default function Dashboard({ onLogout }) {
-  const [apps, setApps]         = useState([]);
+  const [apps, setApps]             = useState([]);
   const [selectedApp, setSelectedApp] = useState(null);
-  const [hours, setHours]       = useState(24);
+  const [hours, setHours]           = useState(24);
   const [newAppName, setNewAppName] = useState('');
-  const [tab, setTab]           = useState('overview');
+  const [tab, setTab]               = useState('overview');
 
   useEffect(() => {
     api.getApps().then(r => {
@@ -67,11 +70,11 @@ export default function Dashboard({ onLogout }) {
         </select>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — added 'ai' here */}
       <div style={{ display:'flex', gap:'8px', marginBottom:'24px', flexWrap:'wrap' }}>
-        {['overview','logs','alerts'].map(t => (
+        {['overview','logs','alerts','ai'].map(t => (
           <button key={t} style={TAB_STYLE(tab === t)} onClick={() => setTab(t)}>
-            {t.charAt(0).toUpperCase() + t.slice(1)}
+            {t === 'ai' ? 'AI Insights' : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
@@ -93,6 +96,10 @@ export default function Dashboard({ onLogout }) {
       {selectedApp && tab === 'alerts' && (
         <AlertsPanel appId={selectedApp.id} />
       )}
+      {selectedApp && tab === 'ai' && (
+        <AIInsights appId={selectedApp.id} hours={hours} />
+      )}
+
     </div>
   );
 }

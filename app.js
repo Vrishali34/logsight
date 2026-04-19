@@ -63,7 +63,17 @@ app.use('/api/alerts',  require('./src/features/alerts/alerts.routes')); // Phas
 app.use('/api/ai',     require('./src/features/ai/ai.routes'));       // Phase 9 ✅
 
 
+// ── Serve React frontend in production ────────────────────────────
+if (process.env.NODE_ENV === 'production') {
+  const path = require('path');
+  app.use(express.static(path.join(__dirname, 'client/dist')));
 
+  // Any route not matched by the API returns index.html
+  // This allows React Router to handle client-side navigation
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'client/dist', 'index.html'));
+  });
+}
 
 // ── 404 handler ───────────────────────────────────────────────────
 app.use((req, res) => {

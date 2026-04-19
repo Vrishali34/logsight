@@ -55,22 +55,20 @@ app.get('/health', (req, res) => {
 
 // ── API routes (added phase by phase) ────────────────────────────
 app.use('/api/auth',     require('./src/features/auth/auth.routes'));
-app.use('/api/apps',     require('./src/features/apps/apps.routes'));       // Phase 4 ✅
-app.use('/api/logs',     require('./src/features/logs/logs.routes'));       // Phase 5 ✅
+app.use('/api/apps',     require('./src/features/apps/apps.routes'));          // Phase 4 ✅
+app.use('/api/logs',     require('./src/features/logs/logs.routes'));          // Phase 5 ✅
 app.use('/api/analysis', require('./src/features/analysis/analysis.routes')); // Phase 6 ✅
-app.use('/api/alerts',  require('./src/features/alerts/alerts.routes')); // Phase 7
-
-app.use('/api/ai',     require('./src/features/ai/ai.routes'));       // Phase 9 ✅
-
+app.use('/api/alerts',   require('./src/features/alerts/alerts.routes'));      // Phase 7 ✅
+app.use('/api/ai',       require('./src/features/ai/ai.routes'));              // Phase 9 ✅
 
 // ── Serve React frontend in production ────────────────────────────
+// Must come AFTER all API routes so /api/* is handled first
 if (process.env.NODE_ENV === 'production') {
   const path = require('path');
   app.use(express.static(path.join(__dirname, 'client/dist')));
 
-  // Any route not matched by the API returns index.html
-  // This allows React Router to handle client-side navigation
-  app.get('*', (req, res) => {
+  // Named wildcard required for Express 5 + path-to-regexp v8+
+  app.get('/{*path}', (req, res) => {
     res.sendFile(path.join(__dirname, 'client/dist', 'index.html'));
   });
 }

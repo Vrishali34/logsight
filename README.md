@@ -1,8 +1,8 @@
 # LogSight
 
-A production-style **System Monitoring & Alerting Platform**. Ingest logs from your services via HTTP, monitor error rates in real time, trigger threshold alerts, and analyse trends with an AI-powered insights engine.
+A production-style **System Monitoring & Alerting Platform**. Ingest logs from your services via HTTP, monitor error rates in real time, trigger threshold alerts, and get AI-powered plain-English analysis of what's happening and what to fix.
 
-Built with **Node.js + Express 5**, **PostgreSQL**, **BullMQ + Redis**, **Anthropic Claude API**, and a **React + Vite + Recharts** frontend dashboard.
+Built with **Node.js + Express 5**, **PostgreSQL**, **Groq + Llama 3**, and a **React + Vite + Recharts** frontend.
 
 ---
 
@@ -18,10 +18,8 @@ Built with **Node.js + Express 5**, **PostgreSQL**, **BullMQ + Redis**, **Anthro
 | 6 | Analysis engine — summary, trends, service breakdown | ✅ Complete |
 | 7 | Alert system — threshold detection, cooldown | ✅ Complete |
 | 8 | React frontend — Vite + Recharts dashboard | ✅ Complete |
-| 9 | AI insights — Anthropic Claude API | ⬜ Next |
-| 10 | Docker + deployment — Render + Supabase | ⬜ Upcoming |
-
-**Tests: 26 passing** across 4 suites
+| 9 | AI insights — Groq + Llama 3, provider-agnostic | ✅ Complete |
+| 10 | Docker + deployment — Render + Supabase | ⬜ Next |
 
 ---
 
@@ -38,7 +36,7 @@ Built with **Node.js + Express 5**, **PostgreSQL**, **BullMQ + Redis**, **Anthro
 | Queue | BullMQ + Redis |
 | Testing | Jest + Supertest |
 | Deployment | Docker + Render |
-| AI Layer | Anthropic Claude API |
+| AI Layer | Groq SDK + Llama 3.3 70B (free) |
 
 ---
 
@@ -47,40 +45,21 @@ Built with **Node.js + Express 5**, **PostgreSQL**, **BullMQ + Redis**, **Anthro
 ```bash
 git clone https://github.com/Vrishali34/logsight
 cd logsight
-
-# Install backend dependencies
 npm install
-
-# Install frontend dependencies
 cd client && npm install && cd ..
-
 cp .env.example .env
-# Fill in your values in .env
-
+# Fill in DATABASE_URL, JWT_SECRET, GROQ_API_KEY
 npm run migrate:up
 ```
 
-**Run the full stack (two terminals):**
-
+**Run the full stack:**
 ```bash
-# Terminal 1 — backend API
-npm run dev        # http://localhost:3000
+# Terminal 1
+npm run dev       # backend → http://localhost:3000
 
-# Terminal 2 — React frontend
-npm run client     # http://localhost:5173
+# Terminal 2
+npm run client    # frontend → http://localhost:5173
 ```
-
-Open `http://localhost:5173` in your browser.
-
----
-
-## Dashboard Features
-
-| Tab | What you see |
-|-----|-------------|
-| **Overview** | Error rate %, total/error/warn/info/debug counts, hourly trend chart, per-service breakdown |
-| **Logs** | Last 50 logs, filterable by level (error/warn/info/debug) |
-| **Alerts** | Create threshold rules, see last triggered time, delete rules |
 
 ---
 
@@ -94,8 +73,19 @@ Open `http://localhost:5173` in your browser.
 | `JWT_SECRET` | Min 32-character random string |
 | `JWT_EXPIRES_IN` | Token expiry e.g. `7d` |
 | `REDIS_URL` | Redis connection |
-| `ANTHROPIC_API_KEY` | Claude API key (Phase 9) |
-| `FRONTEND_URL` | React app URL for CORS in prod (Phase 10) |
+| `GROQ_API_KEY` | From console.groq.com — free account |
+| `FRONTEND_URL` | React app URL for CORS in prod |
+
+---
+
+## Dashboard
+
+| Tab | What you see |
+|-----|-------------|
+| **Overview** | Error rate %, counts by level, hourly trend chart, services table |
+| **Logs** | Last 50 logs, filterable by level |
+| **Alerts** | Create/delete threshold rules, view last triggered |
+| **AI Insights** | Click Analyse → Llama 3 explains your app's health in plain English |
 
 ---
 
@@ -116,7 +106,19 @@ Open `http://localhost:5173` in your browser.
 | POST | `/api/alerts` | JWT | Create alert rule |
 | GET | `/api/alerts` | JWT | List rules |
 | DELETE | `/api/alerts/:id` | JWT | Delete rule |
-| GET | `/api/ai/insights` | JWT | AI analysis *(Phase 9)* |
+| GET | `/api/ai/insights` | JWT | AI plain-English analysis |
+
+---
+
+## How AI Insights Works
+
+1. You click **Analyse** in the AI Insights tab
+2. Backend fetches summary + trends + services from PostgreSQL in parallel
+3. Builds a structured SRE-style prompt with the real numbers
+4. Sends to Groq API (Llama 3.3 70B, free)
+5. Returns plain-English analysis: health assessment, critical issue, which service to fix, what to do
+
+**Why Groq:** Free tier, LPU hardware (custom silicon for AI inference = very fast), Llama 3.3 70B is a high-quality open-source model. Provider-agnostic design means switching to Anthropic Claude or OpenAI GPT-4o is a 3-line change in `ai.service.js`.
 
 ---
 
@@ -124,41 +126,19 @@ Open `http://localhost:5173` in your browser.
 
 ```bash
 npm run dev           # Backend (nodemon)
-npm run client        # Frontend (Vite dev server)
+npm run client        # Frontend (Vite)
 npm start             # Backend production
-npm test              # Run all tests (26 passing)
-npm run migrate:up    # Run pending DB migrations
-npm run migrate:down  # Roll back last migration
+npm test              # All tests
+npm run migrate:up    # Run DB migrations
 ```
 
 ---
 
-## Project Structure
+## Key Architecture Decisions
 
-```
-logsight/
-├── client/               # React frontend
-│   ├── index.html
-│   ├── vite.config.js    # /api proxy → localhost:3000
-│   └── src/
-│       ├── App.jsx        # auth gate
-│       ├── api.js         # fetch helper
-│       ├── Login.jsx
-│       ├── Dashboard.jsx
-│       ├── Summary.jsx
-│       ├── TrendsChart.jsx
-│       ├── ServicesTable.jsx
-│       ├── LogViewer.jsx
-│       └── AlertsPanel.jsx
-├── src/
-│   └── features/
-│       ├── auth/  ✅
-│       ├── apps/  ✅
-│       ├── logs/  ✅
-│       ├── analysis/ ✅
-│       ├── alerts/   ✅
-│       └── ai/       (Phase 9)
-├── tests/               # 26 tests, 4 suites
-├── app.js
-└── server.js
-```
+- **Provider-agnostic AI layer** — Groq SDK isolated in `ai.service.js`; controller/routes/frontend have no AI knowledge
+- **Promise.all for data fetching** — summary, trends, services queried in parallel, not sequentially
+- **Structured prompt** — role (SRE), labelled data, numbered output format, 200-word limit
+- **30s test timeout** — AI calls take 1–5s; Jest's default 5s timeout would always fail
+- **Two auth systems** — JWT for users, API keys for log ingestion services
+- **Raw SQL** — FILTER aggregates, DATE_TRUNC, NULLIF require raw SQL; ORMs can't handle Phase 6 queries cleanly

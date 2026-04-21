@@ -1,22 +1,24 @@
-# ── Build stage ───────────────────────────────────────────────────
-FROM node:20-alpine AS base
+# ── Stage 1: Build React frontend ────────────────────────────────
+FROM node:20-alpine AS frontend-build
 
-# Set working directory inside the container
+WORKDIR /app/client
+COPY client/package*.json ./
+RUN npm ci
+COPY client/ ./
+RUN npm run build
+
+# ── Stage 2: Backend + built frontend ────────────────────────────
+FROM node:20-alpine AS final
+
 WORKDIR /app
 
-# Copy package files first (Docker layer caching — only reinstalls
-# dependencies when package.json changes, not on every code change)
 COPY package*.json ./
-
-# Install production dependencies only
 RUN npm ci --omit=dev
 
-# Copy the rest of the source code
 COPY . .
 
-# ── Runtime ───────────────────────────────────────────────────────
-# Expose the port Express listens on
-EXPOSE 3000
+# Copy built frontend from Stage 1
+COPY --from=frontend-build /app/client/dist ./client/dist
 
-# Start the server
+EXPOSE 3000
 CMD ["node", "server.js"]

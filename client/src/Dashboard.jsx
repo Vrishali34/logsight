@@ -200,7 +200,7 @@ export default function Dashboard({ onLogout }) {
         </>
       )}
       {selectedApp && tab === 'logs' && (
-        <LogViewer appId={selectedApp.id} />
+        <LogViewer appId={selectedApp.id} hours={hours}  />
       )}
       {selectedApp && tab === 'alerts' && (
         <AlertsPanel appId={selectedApp.id} />

@@ -24,7 +24,7 @@ export const api = {
   register:       (email, password)     => req('POST', '/auth/register', { email, password }),
   getApps:        ()                    => req('GET',  '/apps'),
   createApp:      (name)                => req('POST', '/apps', { name }),
-  getLogs:        (appId, level, limit) => req('GET',  `/logs?app_id=${appId}${level ? `&level=${level}` : ''}&limit=${limit || 50}`),
+  getLogs: (appId, level, limit, hours) => req('GET', `/logs?app_id=${appId}${level ? `&level=${level}` : ''}&limit=${limit || 50}${hours ? `&hours=${hours}` : ''}`),
   getSummary:     (appId, hours)        => req('GET',  `/analysis/summary?app_id=${appId}&hours=${hours || 24}`),
   getTrends:      (appId, hours)        => req('GET',  `/analysis/trends?app_id=${appId}&hours=${hours || 24}`),
   getServices:    (appId, hours)        => req('GET',  `/analysis/services?app_id=${appId}&hours=${hours || 24}`),

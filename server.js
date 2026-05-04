@@ -7,7 +7,7 @@ const { connectDB } = require('./src/config/db');
 const PORT = process.env.PORT || 3000;
 
 async function startServer() {
-  // Verify DB connection before accepting any HTTP traffic
+  // Verification logic :  DB connection before accepting any HTTP traffic
   await connectDB();
 
   const server = app.listen(PORT, () => {

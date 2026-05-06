@@ -367,7 +367,7 @@ curl 'http://localhost:3000/api/analysis/summary?app_id=2' \
 - Limit: 10 attempts per 15 minutes per IP address
 - Library: express-rate-limit middleware
 - Returns HTTP 429 when limit exceeded
-- Includes standard RateLimit headers
+- Includes standard RateLimit headers (Limit, Remaining, Reset, Retry-After)
 
 **Files Modified:**
 - `src/features/auth/auth.routes.js` (added rate limiter to register and login endpoints)
@@ -376,7 +376,41 @@ curl 'http://localhost:3000/api/analysis/summary?app_id=2' \
 ```bash
 # Attempts 1-10 → Allowed (returns "Invalid email or password")
 # Attempt 11 → Blocked (returns "Too many login attempts")
-# Response headers include RateLimit-Limit, RateLimit-Remaining, Retry-After
+# Response headers include RateLimit-Limit: 10, RateLimit-Remaining: 0, Retry-After: 900
+```
+
+### ✅ Fix 3: Input Validation (COMPLETE & TESTED)
+
+**Problem Solved:** Prevent DoS attacks through parameter manipulation
+
+**Implementation:**
+- Hours parameter: Capped at 1-168 (1 hour to 7 days)
+- App_id: Required, positive integer
+- Alert threshold: Validated to 1-10000 range
+- Alert metric: Must be error_count/warning_count/total_logs
+- Cooldown: Validated to 1-1440 minutes (24 hours max)
+- Log level: error/warning/info/debug only
+- Message: Required, max 1000 characters
+- Service: Optional, max 100 characters
+- Limit: Capped at 1000 (prevents huge result sets)
+
+**Files Modified:**
+- `src/features/analysis/analysis.controller.js` (hours validation)
+- `src/features/alerts/alerts.controller.js` (threshold, metric, cooldown validation)
+- `src/features/logs/logs.controller.js` (level, message, service validation)
+
+**Testing Results:**
+```bash
+# Valid request → 200 OK
+curl 'http://localhost:3000/api/analysis/summary?app_id=37&hours=24'
+
+# Huge hours (99999) → Capped to 168
+curl 'http://localhost:3000/api/analysis/summary?app_id=37&hours=99999'
+# Returns: "period_hours":168 ✅
+
+# Missing app_id → 400 Bad Request
+curl 'http://localhost:3000/api/analysis/summary?hours=24'
+# Returns: "message":"app_id query parameter is required"
 ```
 
 ### 🔐 Authentication & Password Security
@@ -543,13 +577,9 @@ Improvements are welcome!
 ## License
 
 MIT License — feel free to use for learning.
-
 ## Support
 
 - **Issues:** GitHub Issues
 - **Questions:** Check the docs or create a discussion
 - **Security:** Report privately to the maintainer
-
----
-
 

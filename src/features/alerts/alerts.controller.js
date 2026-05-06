@@ -1,27 +1,56 @@
 const { pool } = require('../../config/db');
 const alertsService = require('./alerts.service');
 
-/**
- * Authorization Check Pattern:
- * Verify the logged-in user owns the app before creating, reading, or deleting alert rules.
- * 
- * Pattern: For every operation on user data, ask:
- * "Does req.user.userId own the app_id they're requesting?"
- */
+// Valid metrics
+const VALID_METRICS = ['error_count', 'warning_count', 'total_logs'];
 
-const createRule = async (req, res) => {
-  const { app_id, metric, threshold, cooldown_minutes } = req.body;
+// Helper: Validate integer
+const validateIntParam = (value, min, max) => {
+  const parsed = parseInt(value, 10);
+  if (isNaN(parsed)) return null;
+  if (parsed < min || parsed > max) return null;
+  return parsed;
+};
 
-  if (!app_id) {
-    return res.status(400).json({
-      success: false,
-      error: { message: 'app_id is required in request body' }
-    });
-  }
-
-  // ✅ FIX 1: AUTHORIZATION CHECK
-  // Verify user owns the app before creating alert rule for it
+exports.createRule = async (req, res, next) => {
   try {
+    const { app_id, metric, threshold, cooldown_minutes } = req.body;
+
+    // Validate app_id
+    if (!app_id || !Number.isInteger(app_id) || app_id < 1) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'app_id must be a positive integer' }
+      });
+    }
+
+    // Validate metric
+    if (!metric || !VALID_METRICS.includes(metric)) {
+      return res.status(400).json({
+        success: false,
+        error: { message: `metric must be one of: ${VALID_METRICS.join(', ')}` }
+      });
+    }
+
+    // Validate threshold (1 to 10000)
+    const validThreshold = validateIntParam(threshold, 1, 10000);
+    if (validThreshold === null) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'threshold must be between 1 and 10000' }
+      });
+    }
+
+    // Validate cooldown (1 to 1440 minutes = 24 hours)
+    const validCooldown = validateIntParam(cooldown_minutes, 1, 1440);
+    if (validCooldown === null) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'cooldown_minutes must be between 1 and 1440' }
+      });
+    }
+
+    // Authorization check
     const ownershipCheck = await pool.query(
       'SELECT id FROM apps WHERE id = $1 AND user_id = $2',
       [app_id, req.user.userId]
@@ -33,37 +62,36 @@ const createRule = async (req, res) => {
         error: { message: 'Access denied' }
       });
     }
-  } catch (err) {
-    return res.status(500).json({
-      success: false,
-      error: { message: 'Authorization check failed' }
+
+    // Create rule
+    const rule = await alertsService.createRule(
+      app_id,
+      metric,
+      validThreshold,
+      validCooldown
+    );
+
+    res.status(201).json({
+      success: true,
+      rule
     });
+  } catch (err) {
+    next(err);
   }
-  // ✅ END FIX 1
-
-  const rule = await alertsService.createRule({
-    appId:           app_id,
-    metric,
-    threshold,
-    cooldownMinutes: cooldown_minutes,
-  });
-
-  res.status(201).json({ success: true, rule });
 };
 
-const getRules = async (req, res) => {
-  const appId = parseInt(req.query.app_id);
-
-  if (!appId) {
-    return res.status(400).json({
-      success: false,
-      error: { message: 'app_id query parameter is required' },
-    });
-  }
-
-  // ✅ FIX 1: AUTHORIZATION CHECK
-  // Verify user owns the app before returning their alert rules
+exports.getRules = async (req, res, next) => {
   try {
+    const appId = parseInt(req.query.app_id, 10);
+
+    if (!appId || appId < 1) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'app_id query parameter is required' }
+      });
+    }
+
+    // Authorization check
     const ownershipCheck = await pool.query(
       'SELECT id FROM apps WHERE id = $1 AND user_id = $2',
       [appId, req.user.userId]
@@ -75,32 +103,32 @@ const getRules = async (req, res) => {
         error: { message: 'Access denied' }
       });
     }
-  } catch (err) {
-    return res.status(500).json({
-      success: false,
-      error: { message: 'Authorization check failed' }
-    });
-  }
-  // ✅ END FIX 1
 
-  const rules = await alertsService.getRules(appId);
-  res.json({ success: true, rules });
+    // Get rules
+    const rules = await alertsService.getRules(appId);
+
+    res.json({
+      success: true,
+      rules
+    });
+  } catch (err) {
+    next(err);
+  }
 };
 
-const deleteRule = async (req, res) => {
-  const ruleId = parseInt(req.params.id);
-  const appId  = parseInt(req.query.app_id);
-
-  if (!appId) {
-    return res.status(400).json({
-      success: false,
-      error: { message: 'app_id query parameter is required' },
-    });
-  }
-
-  // ✅ FIX 1: AUTHORIZATION CHECK
-  // Verify user owns the app before deleting alert rule
+exports.deleteRule = async (req, res, next) => {
   try {
+    const ruleId = parseInt(req.params.id, 10);
+    const appId = parseInt(req.query.app_id, 10);
+
+    if (!ruleId || !appId) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'rule id and app_id are required' }
+      });
+    }
+
+    // Authorization check
     const ownershipCheck = await pool.query(
       'SELECT id FROM apps WHERE id = $1 AND user_id = $2',
       [appId, req.user.userId]
@@ -112,24 +140,15 @@ const deleteRule = async (req, res) => {
         error: { message: 'Access denied' }
       });
     }
+
+    // Delete rule
+    await alertsService.deleteRule(ruleId, appId);
+
+    res.json({
+      success: true,
+      message: 'Alert rule deleted successfully'
+    });
   } catch (err) {
-    return res.status(500).json({
-      success: false,
-      error: { message: 'Authorization check failed' }
-    });
+    next(err);
   }
-  // ✅ END FIX 1
-
-  const deleted = await alertsService.deleteRule(ruleId, appId);
-
-  if (!deleted) {
-    return res.status(404).json({
-      success: false,
-      error: { message: 'Alert rule not found' },
-    });
-  }
-
-  res.json({ success: true, message: 'Alert rule deleted' });
 };
-
-module.exports = { createRule, getRules, deleteRule };

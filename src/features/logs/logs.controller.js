@@ -1,49 +1,85 @@
 const { pool } = require('../../config/db');
-const logsService    = require('./logs.service');
-const { checkAlerts } = require('../alerts/alerts.service');
+const logsService = require('./logs.service');
+const alertsService = require('../alerts/alerts.service');
 
-/**
- * Authorization Check Pattern:
- * For ingestLog: API key already tied to app (req.app_record), so no additional check needed
- * For queryLogs: User is making the request, so verify they own the app
- */
+exports.ingestLog = async (req, res, next) => {
+  try {
+    const { level, message, service, metadata } = req.body;
 
-const ingestLog = async (req, res) => {
-  const { level, message, service, metadata } = req.body;
+    // Validate level
+    const validLevels = ['error', 'warning', 'info', 'debug'];
+    if (!level || !validLevels.includes(level)) {
+      return res.status(400).json({
+        success: false,
+        error: { message: `level must be one of: ${validLevels.join(', ')}` }
+      });
+    }
 
-  const log = await logsService.createLog({
-    appId: req.app_record.id,
-    level,
-    message,
-    service,
-    metadata,
-  });
+    // Validate message (required, string, max 1000 chars)
+    if (!message || typeof message !== 'string' || message.length > 1000) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'message is required and must be < 1000 characters' }
+      });
+    }
 
-  // Check alert rules after every log ingestion
-  const triggeredAlerts = await checkAlerts(req.app_record.id);
+    // Validate service (optional, string, max 100 chars)
+    if (service && (typeof service !== 'string' || service.length > 100)) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'service must be < 100 characters' }
+      });
+    }
 
-  res.status(201).json({
-    success: true,
-    log,
-    alerts: triggeredAlerts, // empty array [] if nothing triggered
-  });
+    // Create log
+    const log = await logsService.createLog(
+      req.app_record.id,
+      level,
+      message,
+      service || 'unknown',
+      metadata
+    );
+
+    // Check alerts
+    const alerts = await alertsService.checkAlerts(req.app_record.id);
+
+    res.status(201).json({
+      success: true,
+      log,
+      alerts
+    });
+  } catch (err) {
+    next(err);
+  }
 };
 
-const queryLogs = async (req, res) => {
-  const { level, service, limit, offset } = req.query;
-  const appId = req.app_record?.id || parseInt(req.query.app_id);
+exports.queryLogs = async (req, res, next) => {
+  try {
+    const appId = parseInt(req.query.app_id, 10);
+    const level = req.query.level;
+    const service = req.query.service;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 1000); // Cap at 1000
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
 
-  if (!appId) {
-    return res.status(400).json({
-      success: false,
-      error: { message: 'app_id query parameter is required' }
-    });
-  }
+    // Validate app_id
+    if (!appId || appId < 1) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'app_id query parameter is required' }
+      });
+    }
 
-  // ✅ FIX 1: AUTHORIZATION CHECK
-  // If not using API key (req.app_record), verify user owns the app
-  if (!req.app_record) {
-    try {
+    // Validate level if provided
+    const validLevels = ['error', 'warning', 'info', 'debug'];
+    if (level && !validLevels.includes(level)) {
+      return res.status(400).json({
+        success: false,
+        error: { message: `level must be one of: ${validLevels.join(', ')}` }
+      });
+    }
+
+    // Authorization check (only for JWT auth, not API key)
+    if (!req.app_record) {
       const ownershipCheck = await pool.query(
         'SELECT id FROM apps WHERE id = $1 AND user_id = $2',
         [appId, req.user.userId]
@@ -55,24 +91,19 @@ const queryLogs = async (req, res) => {
           error: { message: 'Access denied' }
         });
       }
-    } catch (err) {
-      return res.status(500).json({
-        success: false,
-        error: { message: 'Authorization check failed' }
-      });
     }
+
+    // Query logs
+    const logs = await logsService.getLogs(appId, { level, service, limit, offset });
+
+    res.json({
+      success: true,
+      count: logs.length,
+      offset,
+      limit,
+      logs
+    });
+  } catch (err) {
+    next(err);
   }
-  // ✅ END FIX 1
-
-  const logs = await logsService.getLogs({
-    appId,
-    level,
-    service,
-    limit:  parseInt(limit) || 50,
-    offset: parseInt(offset) || 0,
-  });
-
-  res.json({ success: true, count: logs.length, logs });
 };
-
-module.exports = { ingestLog, queryLogs };

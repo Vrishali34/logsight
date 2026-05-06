@@ -542,7 +542,7 @@ Improvements are welcome!
 
 ## License
 
-MIT License — feel free to use for learning or commercial projects.
+MIT License — feel free to use for learning.
 
 ## Support
 
@@ -552,6 +552,4 @@ MIT License — feel free to use for learning or commercial projects.
 
 ---
 
-**Last Updated:** May 5, 2026  
-**Version:** 1.0.0  
-**Status:** ✅ Production Ready
+

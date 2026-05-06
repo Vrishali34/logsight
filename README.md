@@ -75,7 +75,7 @@ npm test
 - ✅ API keys for machine-to-machine ingestion
 - ✅ Helmet.js security headers
 
-**Authorization Pattern (Implemented):**
+**Authorization Pattern (Fix 1 - Implemented):**
 Every endpoint that accesses user data verifies ownership before returning:
 ```javascript
 // Example: Before returning analytics, check ownership
@@ -88,6 +88,20 @@ if (ownershipCheck.rows.length === 0) {
   return res.status(403).json({ error: 'Access denied' });
 }
 ```
+
+**Rate Limiting (Fix 2 - Implemented):**
+Login and register endpoints are rate-limited to 10 attempts per 15 minutes per IP:
+```javascript
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,  // 15 minutes
+  max: 10,                    // 10 requests per IP
+  message: { error: { message: 'Too many login attempts. Please try again in 15 minutes.' }}
+});
+
+router.post('/login', authLimiter, controller.login);
+router.post('/register', authLimiter, controller.register);
+```
+Prevents brute force attacks. Returns HTTP 429 when limit exceeded.
 
 ### 📊 Log Ingestion & Storage
 
@@ -318,7 +332,7 @@ FRONTEND_URL=http://localhost:5173
 
 ## Security Features Implemented
 
-### ✅ Fix 1: Authorization Checks (COMPLETE)
+### ✅ Fix 1: Authorization Checks (COMPLETE & TESTED)
 
 **Problem Solved:** Prevent cross-user data access
 
@@ -333,7 +347,7 @@ FRONTEND_URL=http://localhost:5173
 - `src/features/logs/logs.controller.js` (queryLogs)
 - `src/features/alerts/alerts.controller.js` (createRule, getRules, deleteRule)
 
-**Testing:**
+**Testing Results:**
 ```bash
 # User 1 accesses own app → 200 OK ✅
 curl 'http://localhost:3000/api/analysis/summary?app_id=1' \
@@ -343,6 +357,26 @@ curl 'http://localhost:3000/api/analysis/summary?app_id=1' \
 curl 'http://localhost:3000/api/analysis/summary?app_id=2' \
   -H "Authorization: Bearer $TOKEN_USER1"
 # Response: {"success":false,"error":{"message":"Access denied"}}
+```
+
+### ✅ Fix 2: Rate Limiting (COMPLETE & TESTED)
+
+**Problem Solved:** Prevent brute force attacks on login/register
+
+**Implementation:**
+- Limit: 10 attempts per 15 minutes per IP address
+- Library: express-rate-limit middleware
+- Returns HTTP 429 when limit exceeded
+- Includes standard RateLimit headers
+
+**Files Modified:**
+- `src/features/auth/auth.routes.js` (added rate limiter to register and login endpoints)
+
+**Testing Results:**
+```bash
+# Attempts 1-10 → Allowed (returns "Invalid email or password")
+# Attempt 11 → Blocked (returns "Too many login attempts")
+# Response headers include RateLimit-Limit, RateLimit-Remaining, Retry-After
 ```
 
 ### 🔐 Authentication & Password Security
@@ -508,7 +542,7 @@ Improvements are welcome!
 
 ## License
 
-MIT License — feel free to use for learning.
+MIT License — feel free to use for learning or commercial projects.
 
 ## Support
 

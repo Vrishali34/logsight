@@ -503,9 +503,20 @@ logsight/
 
 ## Screenshots
 
-_Coming soon_
+### Authentication
+![Sign Up](docs/screenshots/sign-up%20page.png)
 
----
+### Dashboard & Real-time Analytics
+![Dashboard Overview](docs/screenshots/dashboard-overview.png)
+
+### Log Ingestion & Monitoring
+![Recent Logs](docs/screenshots/Recent%20logs.png)
+
+### Alert Management
+![Alert Rule Fired](docs/screenshots/Alert%20rule%20fired.png)
+
+### AI-Powered Insights
+![AI Insights](docs/screenshots/AI%20insights.png)
 
 ## Environment Variables
 
